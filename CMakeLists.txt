@@ -14,11 +14,6 @@ endif()
 
 file(GLOB_RECURSE sources src/*.cpp)
 
-set(NBT_USE_ZLIB OFF)
-set(NBT_BUILD_TESTS OFF)
-set(NBT_BUILD_SHARED OFF)
-add_subdirectory(deps/libnbtplusplus)
-
 add_executable(mcprofiles ${sources})
 
 set_target_properties(mcprofiles PROPERTIES OUTPUT_NAME "mcp")
@@ -29,6 +24,5 @@ target_include_directories(mcprofiles
 
 target_link_libraries(mcprofiles
     stdc++fs
-    nbt++
 )
 

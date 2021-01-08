@@ -6,7 +6,6 @@
 struct Profile {
     std::string name;
     std::string data;
-    std::string savePath;
 };
 
 #endif
