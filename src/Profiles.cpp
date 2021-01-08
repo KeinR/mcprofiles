@@ -1,25 +1,40 @@
 #include "Profiles.h"
 
-#include <filesystem>
-#include <algorithm>
 #include <limits>
-
-namespace fs = std::filesystem;
+#include <stdexcept>
 
 #define SIGNATURE ".mcprofiles"
 #define BACKUP "backup"
 #define USERS "users"
 #define MAX_BACKUPS 20
 #define LEVEL_FILE "level.dat"
+#define CURRENT_USER "current_user"
 
 #define TAG_End 0x00
 #define TAG_Compound 0x0A
 #define TAG_Byte 0x01
 
-Profiles::Profiles(const std::string &path) {
-    for (fs::directory_entry e : fs::directory_iterator()) {
-        load(e.path().string());
+namespace fs = std::filesystem;
+
+Profiles::Profiles(const std::string &path): path(path) {
+    fs::path s = this->path / SIGNATURE;
+    if (!fs::exists(s)) {
+        init();
+    } else if (fs::is_directory(s)) {
+        throw std::runtime_error(SIGNATURE " is not a directory");
     }
+}
+
+void Profiles::init() {
+    fs::path s = path / SIGNATURE;
+    fs::create_directory(s);
+    std::ofstream currentUser;
+    currentUser.exceptions(std::ofstream::badbit | std::ofstream::failbit);
+    currentUser.open(s / CURRENT_USER);
+    currentUser.close();
+    fs::create_directory(s / BACKUP);
+    fs::create_directory(s / USERS);
+    fs::create_directory(s / BACKUP / USERS);
 }
 
 std::string Profiles::getTimestamp() {
@@ -34,9 +49,11 @@ Profiles::playerofs_t Profiles::seek(std::ifstream &file) {
     
     playerofs_t player;
 
+    file.seekg(0, file.beg);
+
     while (file.good()) {
         if (file.get() == TAG_Compound) {
-            short length;
+            unsigned short length;
             file >> length;
             if (length == tagName.size()) {
                 std::string buffer(tagName.size(), '.');
@@ -58,7 +75,7 @@ Profiles::playerofs_t Profiles::seek(std::ifstream &file) {
         if (file.peek() == TAG_Byte && --bytes <= 0) {
             std::size_t pos = file.tellg();
             file.ignore(1);
-            short length;
+            unsigned short length;
             file >> length;
             if (length == tag2Name.size()) {
                 std::string buffer(tag2Name.data(), tag2Name.size());
@@ -73,6 +90,7 @@ Profiles::playerofs_t Profiles::seek(std::ifstream &file) {
         }
     }
 
+    file.seekg(0, file.beg);
 
     return player;
 }
@@ -121,39 +139,100 @@ void Profiles::backup() {
     }
 }
 
-void Profiles::read(const std::string &path) {
+void Profiles::save(const std::string &name) {
+    std::string data = snapshot();
+    fs::path dir = path / SIGNATURE / USERS;
+    fs::create_directories(dir);
+    fs::path file = dir / name;
+    if (fs::is_directory(file)) {
+        throw std::invalid_argument("User file is a directory (?)");
+    }
 
+    fs::path savDir = path / SIGNATURE / BACKUP / USERS;
+    fs::create_directories(savDir);
+    fs::path savFile = savDir / name;
+    fs::copy_file(file, savFile);
+    
+    std::ofstream f(dir / name, std::ofstream::trunc);
+    f.write(data.data(), data.size());
 }
 
-void Profiles::write() {
-
+std::vector<char> Profiles::loadFile(std::ifstream &file) {
+    file.seekg(0, file.end);
+    std::size_t len = file.tellg();
+    file.seekg(0, file.beg);
+    std::vector<char> buffer(len);
+    file.read(buffer.data(), buffer.size());
+    file.seekg(0, file.beg);
+    return buffer;
 }
 
 void Profiles::load(const std::string &name) {
-    data_t::iterator it = data.find(name);
-    if (it != data.end()) {
-        create(name);
+    fs::path p = path / SIGNATURE / USERS / name;
+    if (!fs::exists(p)) {
+        save(name);
+    } else {
+        backup(); // Very important
+
+        std::ifstream in;
+        in.exceptions(std::ifstream::badbit | std::ifstream::failbit);
+        
+        fs::path currentUserPath = path / SIGNATURE / CURRENT_USER;
+        in.open(currentUserPath);
+        std::vector<char> currentUserBuf = loadFile(in);
+        std::string currentUser(currentUserBuf.begin(), currentUserBuf.end());
+        in.close();
+        in.clear();
+        if (!currentUser.empty()) {
+            save(currentUser);
+        }
+
+        in.open(p, std::ifstream::binary);
+        std::vector<char> newPlayerData = loadFile(in);
+        in.close();
+        in.clear();
+
+        fs::path dataFile = path / LEVEL_FILE;
+        in.open(dataFile, std::ifstream::binary);
+        playerofs_t pos = seek(in);
+        std::vector<char> levelData = loadFile(in);
+        in.close();
+
+        std::vector<char> begin(levelData.begin(), levelData.begin() + pos.first);
+        std::vector<char> end(levelData.begin() + pos.second, levelData.end());
+        std::vector<char> newLevelData;
+        newLevelData.reserve(newPlayerData.size() + begin.size() + end.size());
+        newLevelData.insert(newLevelData.end(), begin.begin(), begin.end());
+        newLevelData.insert(newLevelData.end(), newPlayerData.begin(), newPlayerData.end());
+        newLevelData.insert(newLevelData.end(), end.begin(), end.end());
+
+        std::ofstream out;
+        out.exceptions(std::ofstream::badbit | std::ofstream::failbit);
+
+        out.open(dataFile, std::ofstream::binary | std::ofstream::trunc);
+        out.write(newLevelData.data(), newLevelData.size());
+        out.close();
+        out.clear();
+
+        out.open(currentUserPath, std::ofstream::trunc);
+        out.write(name.data(), name.size());
+        out.close();
+        out.clear();
+        
     }
+
+
 }
 
 void Profiles::remove(const std::string &name) {
-
-}
-
-void Profiles::open(const std::string &name) {
-    fs::path dir = path / SIGNATURE / USERS;
-    fs::create_directories(dir);
-    std::ifstream file(name);
-    nbt::stream_reader stream();
+    fs::remove(path / SIGNATURE / USERS / name);
 }
 
 std::vector<std::string> Profiles::getList() {
-    std::vector<std::string> result;
-    result.reserve(data.size());
-    std::transform(data.begin(), data.end(), std::back_inserter(result), [](Profile &p) -> std::string {
-        return p.name;
-    });
-    return result;
+    std::vector<std::string> results;
+    for (auto e : fs::directory_iterator(path / SIGNATURE / USERS)) {
+        results.push_back(e.path().filename().string());
+    }
+    return results;
 }
-
 
