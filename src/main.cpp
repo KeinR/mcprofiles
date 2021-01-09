@@ -3,13 +3,16 @@
 #include <string>
 #include <stdexcept>
 #include <exception>
+#include <algorithm>
 
-#include <argh/argh.h>
+#include <argh.h>
 
 #include "Profiles.h"
+#include "util.h"
 
 #define EXIT_ERROR 1
 #define EXIT_OK 0
+#define MAX_USERNAME_LEN 20
 
 void printUsage(const char *execName);
 std::string getUser(argh::parser &com);
@@ -18,9 +21,13 @@ int main(int argc, char **argv) {
 
     namespace fs = std::filesystem;
 
-    argh::parser com(argc, argv);
+    argh::parser com;
+    com.add_params({
+        "-u", "--user"
+    });
+    com.parse(argc, argv);
 
-    if (com({"-h", "--help"})) {
+    if (com[{"-h", "--help"}]) {
         return EXIT_OK;
     }
 
@@ -37,7 +44,10 @@ int main(int argc, char **argv) {
         return EXIT_ERROR;
     }
 
-    Profiles pfp(target);
+    bool debug = com[{"-d", "--debug"}];
+    bool verbose = !com[{"-s", "--silent"}];
+
+    Profiles pfp(target, debug, verbose);
 
     try {
 
@@ -82,10 +92,15 @@ Options
 }
 
 std::string getUser(argh::parser &com) {
-    std::string user;
-    com({"-u", "--user"}) >> user;
-    if (!user.size()) {
+    std::string user = com({"-u", "--user"}).str();
+    if (user.empty()) {
         throw std::invalid_argument("Must supply user");
+    }
+    if (user.size() > MAX_USERNAME_LEN) {
+        throw std::invalid_argument("User name must be shorter than " + std::to_string(MAX_USERNAME_LEN));
+    }
+    if (std::any_of(user.begin(), user.end(), ut::notValidUNC)) {
+        throw std::invalid_argument("User name must be [A-Za-z0-9_]");
     }
     return user;
 }

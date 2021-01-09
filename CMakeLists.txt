@@ -12,11 +12,19 @@ else()
     add_compile_options(-Wall)
 endif()
 
-file(GLOB_RECURSE sources src/*.cpp)
+set(sources
+    src/main.cpp
+    src/Profiles.cpp
+    src/util.cpp
+    deps/gzstream/gzstream.cpp
+)
+
+find_package(ZLIB REQUIRED)
 
 add_executable(mcprofiles ${sources})
 
 set_target_properties(mcprofiles PROPERTIES OUTPUT_NAME "mcp")
+target_compile_definitions(mcprofiles PUBLIC GZSTREAM_NAMESPACE=gz)
 
 target_include_directories(mcprofiles
     PUBLIC "deps/include"
@@ -24,5 +32,6 @@ target_include_directories(mcprofiles
 
 target_link_libraries(mcprofiles
     stdc++fs
+    ZLIB::ZLIB
 )
 
