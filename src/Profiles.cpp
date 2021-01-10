@@ -38,6 +38,8 @@
 
 namespace fs = std::filesystem;
 
+typedef unsigned char uchar;
+
 Profiles::Profiles(const std::string &path, bool debug, bool verbose): path(path), dbTreeLevel(0), debug(debug), verbose(verbose) {
     fs::path s = this->path / SIGNATURE;
     if (!fs::exists(s)) {
@@ -167,11 +169,14 @@ void Profiles::writeNBT(const fs::path &path, const std::string &data, bool &fai
 }
 
 unsigned short Profiles::readShort(const str_iterator_t &it) {
-    return (*it << 8) | *(it + 1);
+    return (static_cast<uchar>(*it) << 8) | static_cast<uchar>(*(it + 1));
 }
 
 int Profiles::readInt(const str_iterator_t &it) {
-    return (*it << 24) | (*(it + 1) << 16) | (*(it + 2) << 8) | *(it + 3);
+    return (static_cast<uchar>(*it) << 24) |
+        (static_cast<uchar>(*(it + 1)) << 16) |
+        (static_cast<uchar>(*(it + 2)) << 8) |
+        static_cast<uchar>(*(it + 3));
 }
 
 void Profiles::parseCompound(str_iterator_t &it, const str_iterator_t &end) {
@@ -374,7 +379,7 @@ void Profiles::backup() {
     fs::path backupDir = path / SIGNATURE / BACKUP; 
     fs::create_directories(backupDir);
     fs::path backup = backupDir / getTimestamp();
-    fs::copy_file(level, backup);
+    fs::copy_file(level, backup, fs::copy_options::overwrite_existing);
 
     fs::path oldest = backup;
     int count = 0;
