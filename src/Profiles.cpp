@@ -530,7 +530,10 @@ void Profiles::remove(const std::string &name) {
 std::vector<std::string> Profiles::getList() {
     std::vector<std::string> results;
     for (auto e : fs::directory_iterator(path / SIGNATURE / USERS)) {
-        results.push_back(e.path().filename().string());
+        std::string candidate = e.path().filename().string();
+        if (!std::any_of(candidate.begin(), candidate.end(), ut::notValidUNC)) {
+            results.push_back(e.path().filename().string());
+        }
     }
     return results;
 }
