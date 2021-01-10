@@ -353,35 +353,6 @@ Profiles::playerofs_t Profiles::seek(const std::string &data) {
 
     parseCompound(player.second, data.cend());
 
-    /*
-   
-    std::string tag2Name = "raining";
-
-    int bytes = 3;
-    for (iterator_t it = data.end() - 1; it >= data.begin(); --it) {
-        if (*it == TAG_Byte && it + 2 < data.end() && --bytes <= 0) {
-            iterator_t p = it + 1;
-
-            unsigned short length = readShort(p);
-            p += 2;
-
-            if (length == tag2Name.size() && p + length < data.end()) {
-                std::string name(p, p + length);
-                if (tag2Name == name) {
-                    player.second = it;
-                    find++;
-                    break;
-                }
-            }
-        }
-    }
-
-    if (find < 2) {
-        throw std::runtime_error("Seek failed");
-    }
-
-    */
-
     return player;
 }
 

@@ -30,8 +30,6 @@ target_include_directories(mcprofiles
     PUBLIC "deps/include"
 )
 
-target_link_libraries(mcprofiles
-    stdc++fs
-    ZLIB::ZLIB
-)
+target_include_directories(mcprofiles PRIVATE ${ZLIB_INCLUDE_DIRS})
+target_link_libraries(mcprofiles stdc++fs z)
 
